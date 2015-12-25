@@ -42,11 +42,11 @@ func (cmd *Wildcard) GetMetadata() plugin.PluginMetadata {
 				},
 			},
 			{
-				Name:     "wildcard-unbind",
-				Alias:    "wc-us",
-				HelpText: "Unbind service on apps in the target space matching the wildcard pattern",
+				Name:     "wildcard-command",
+				Alias:    "wc",
+				HelpText: "Run command on apps in the target space matching the wildcard pattern",
 				UsageDetails: plugin.Usage{
-					Usage: "cf wildcard-unbind APP_NAME_WITH_WILDCARD [-f]",
+					Usage: "cf wildcard-command [-f] COMMAND APP_NAME_WITH_WILDCARD [flags]",
 				},
 			},
 		},
@@ -69,94 +69,78 @@ func reverseOrder(s []string) []string {
 	return reversedString
 }
 
-func (cmd *Wildcard) Run(cliConnection plugin.CliConnection, args []string) {
-	if args[0] == "wildcard-apps" && len(args) == 2 {
-		cmd.WildcardCommandApps(cliConnection, args[1])
-	} else if args[0] == "wildcard-delete" && len(args) >= 2 && len(args) <= 4 {
-		pattern := args[1]
-		fmt.Println(pattern)
-		var _force bool = false
-		var _routes = false
-        var force* bool = &_force
-        var routes* bool = &_routes
-		if len(args) > 2 {
-			wildcardFlagSet := flag.NewFlagSet("echo", flag.ExitOnError)
-			force := wildcardFlagSet.Bool("f", false, "forces deletion of all apps matching APP_NAME_WITH_WILDCARD")
-			routes := wildcardFlagSet.Bool("r", false, "delete routes asssociated with APP_NAME_WITH_WILDCARD")
-			err := wildcardFlagSet.Parse(args[1:])
-			fmt.Println(args)
-			fmt.Println(wildcardFlagSet)
-
-			reversedArgs := reverseOrder(args)
-
-			fmt.Println(reversedArgs)
-
-			wildcardFlagSet2 := flag.NewFlagSet("echo", flag.ExitOnError)
-			force2 := wildcardFlagSet2.Bool("f", false, "forces deletion of all apps matching APP_NAME_WITH_WILDCARD")
-			routes2 := wildcardFlagSet2.Bool("r", false, "delete routes asssociated with APP_NAME_WITH_WILDCARD")
-			err2 := wildcardFlagSet2.Parse(reversedArgs)
-			fmt.Println(reversedArgs)
-			fmt.Println(wildcardFlagSet2)
-
-			pattern = wildcardFlagSet.Arg(0)
-			*force = *force || *force2
-			*routes = *routes || *routes2
-
-			// Parse starting from [1] because the [0]th element is the
-			// name of the command and
-			//wildcardFlagSet's parsing begins with 1 (*asd -f -r) and args left with unchanged
-			//and wildcardFlagSet.Args() returns (*asd)
-			checkError(err)
-			checkError(err2)
-		}
-		cmd.WildcardCommandDelete(cliConnection, pattern, force, routes)
-	} else if args[0] == "wildcard-unbind" && len(args) >= 3 && len(args) <= 4 {
-		service := args[1]
-		fmt.Println(service)
-		pattern := args[2]
-		fmt.Println(pattern)
-		var _force bool = false
-        var force* bool = &_force
-		if len(args) > 3 {
-			wildcardFlagSet := flag.NewFlagSet("echo", flag.ExitOnError)
-			force := wildcardFlagSet.Bool("f", false, "forces unbind of all apps matching APP_NAME_WITH_WILDCARD")
-			err := wildcardFlagSet.Parse(args[1:])
-			fmt.Println(args)
-			fmt.Println(wildcardFlagSet)
-
-			reversedArgs := reverseOrder(args)
-
-			fmt.Println(reversedArgs)
-
-			wildcardFlagSet2 := flag.NewFlagSet("echo", flag.ExitOnError)
-			force2 := wildcardFlagSet2.Bool("f", false, "forces unbind of all apps matching APP_NAME_WITH_WILDCARD")
-			err2 := wildcardFlagSet2.Parse(reversedArgs)
-			fmt.Println(reversedArgs)
-			fmt.Println(wildcardFlagSet2)
-
-			pattern = wildcardFlagSet.Arg(0)
-			*force = *force || *force2
-
-			// Parse starting from [1] because the [0]th element is the
-			// name of the command and
-			//wildcardFlagSet's parsing begins with 1 (*asd -f) and args left with unchanged
-			//and wildcardFlagSet.Args() returns (*asd)
-			checkError(err)
-			checkError(err2)
-		}
-		cmd.WildcardCommandUnbind(cliConnection, service, pattern, force)
-	} else {
-		usage(args)
+func usage(args []string) {
+	if (len(args) == 0) {
+		fmt.Println("Usage: cf COMMAND PARAMS")
+		return
+	}
+	switch args[0] {
+		case "wildcard-apps":
+			fmt.Println("Usage: cf wildcard-apps\n\tcf wildcard-apps APP_NAME_WITH_WILDCARD")
+		case "wildcard-delete":
+			fmt.Println("Usage: cf wildcard-delete\n\tcf wildcard-delete APP_NAME_WITH_WILDCARD [-f -r]")
+		case "wildcard-command":
+			fmt.Println("Usage: cf wildcard-command\n\tcf wildcard-command [-f] COMMAND APP_NAME_WITH_WILDCARD [flags]")
+			fmt.Println("Example: cf wc restart|restage|start|stop APP_NAME_WITH_WILDCARD")
+			fmt.Println("Example: cf wc bind-service|unbind-service APP_NAME_WITH_WILDCARD SERVICE")
 	}
 }
 
-func usage(args []string) {
-	if args[0] == "wildcard-apps" {
-		fmt.Println("Usage: cf wildcard-apps\n\tcf wildcard-apps APP_NAME_WITH_WILDCARD")
-	} else if args[0] == "wildcard-delete" {
-		fmt.Println("Usage: cf wildcard-delete\n\tcf wildcard-delete APP_NAME_WITH_WILDCARD [-f -r]")
-	} else if args[0] == "wildcard-unbind" {
-		fmt.Println("Usage: cf wildcard-unbind\n\tcf wildcard-unbind APP_NAME_WITH_WILDCARD [-f]")
+func (cmd *Wildcard) Run(cliConnection plugin.CliConnection, args []string) {
+	if (len(args) < 2) {
+		usage(args)
+		return
+	}
+	command := args[0]
+  	args = append(args[:0], args[1:]...)
+
+	switch command {
+		case "wildcard-apps":
+			if len(args) == 0 {
+				cmd.WildcardCommandApps(cliConnection, args[0])
+			}
+		case "wildcard-delete":
+		  if len(args) <= 3 {
+			pattern := args[0]
+			fmt.Println(pattern)
+			var _force bool = false
+			var _routes = false
+	        var force* bool = &_force
+	        var routes* bool = &_routes
+			if len(args) > 1 {
+				wildcardFlagSet := flag.NewFlagSet("echo", flag.ExitOnError)
+				force := wildcardFlagSet.Bool("f", false, "forces deletion of all apps matching APP_NAME_WITH_WILDCARD")
+				routes := wildcardFlagSet.Bool("r", false, "delete associated routes")
+				err := wildcardFlagSet.Parse(args[0:])
+				fmt.Println(args)
+				fmt.Println(wildcardFlagSet)
+	
+				reversedArgs := reverseOrder(args)
+	
+				fmt.Println(reversedArgs)
+	
+				wildcardFlagSet2 := flag.NewFlagSet("echo", flag.ExitOnError)
+				force2 := wildcardFlagSet2.Bool("f", false, "forces deletion of all apps matching APP_NAME_WITH_WILDCARD")
+				routes2 := wildcardFlagSet2.Bool("r", false, "delete associated routes")
+				err2 := wildcardFlagSet2.Parse(reversedArgs)
+				fmt.Println(reversedArgs)
+				fmt.Println(wildcardFlagSet2)
+	
+				pattern = wildcardFlagSet.Arg(0)
+				*force = *force || *force2
+				*routes = *routes || *routes2
+	
+				//wildcardFlagSet's parsing begins with 0 (*name -f -r) and args left with unchanged
+				//and wildcardFlagSet.Args() returns (*name)
+				checkError(err)
+				checkError(err2)
+			}
+		    cmd.WildcardCommandDelete(cliConnection, pattern, force, routes)
+		  }
+		case "wildcard-command":
+			cmd.WildcardCommand(cliConnection, args)
+		default:
+			usage(args)
 	}
 }
 
@@ -181,7 +165,7 @@ func getMatchedApps(cliConnection plugin.CliConnection, args string) []plugin_mo
 	output, err := cliConnection.GetApps()
 	checkError(err)
 	matchedApps := []plugin_models.GetAppsModel{}
-	for i := 0; i < (len(output)); i++ {
+	for i := 0; i < len(output); i++ {
 		ok, _ := filepath.Match(pattern, output[i].Name)
 		if ok {
 			matchedApps = append(matchedApps, output[i])
@@ -272,45 +256,53 @@ func (cmd *Wildcard) WildcardCommandDelete(cliConnection plugin.CliConnection, a
 	}
 }
 
-func (cmd *Wildcard) WildcardCommandUnbind(cliConnection plugin.CliConnection, service string, args string, force *bool) {
-	output := getMatchedApps(cliConnection, args)
-	exit := false
-	if !*force && len(output) > 0 {
-		cmd.WildcardCommandApps(cliConnection, args)
+func (cmd *Wildcard) WildcardCommand(cliConnection plugin.CliConnection, args []string) {
+	force := false
+    if (args[0] == "-f") {
+    	force = true
+    	args = append(args[:0], args[1:]...)
+    }
+	command := args[0]
+	pattern := args[1]
+	apps := getMatchedApps(cliConnection, pattern)
+	if !force && len(apps) > 0 {
+		cmd.WildcardCommandApps(cliConnection, pattern)
 		fmt.Println("")
-		fmt.Printf("Would you like to run this command (%s)nteractively, (%s)ll, or (%s)ancel ?%s", table.PromptColor("i"), table.PromptColor("a"), table.PromptColor("c"), table.PromptColor(">"))
+		fmt.Printf("Would you like to %s (%s)nteractively, (%s)ll, or (%s)ancel ?%s", command, table.PromptColor("i"), table.PromptColor("a"), table.PromptColor("c"), table.PromptColor(">"))
 		var mode string
 		fmt.Scanf("%s", &mode)
 		if strings.EqualFold(mode, "a") || strings.EqualFold(mode, "all") {
-			*force = true
+			force = true
 		} else if strings.EqualFold(mode, "i") || strings.EqualFold(mode, "interactively") {
+			force = false
 		} else {
 			fmt.Println(table.WarningColor("Cancelled"))
-			exit = true
+			return
 		}
 	} else {
-		introduction(cliConnection, args)
+		introduction(cliConnection, pattern)
 	}
-	if !exit {
-		for _, app := range output {
-			coloredService := table.EntityNameColor(service)
-			coloredAppName := table.EntityNameColor(app.Name)
-			if *force {
-				cliConnection.CliCommandWithoutTerminalOutput("unbind-service", app.Name, service, "-f")
-				fmt.Println("Unbinding service", coloredService, "from app", coloredAppName)
-			} else {
-				var confirmation string
-				fmt.Printf("Really unbind service %s from the app %s?%s ", table.PromptColor(service), table.PromptColor(app.Name), table.PromptColor(">"))
-				fmt.Scanf("%s", &confirmation)
-				if strings.EqualFold(confirmation, "y") || strings.EqualFold(confirmation, "yes") {
-        			cliConnection.CliCommandWithoutTerminalOutput("unbind-service", app.Name, service, "-f")
-					fmt.Println("Unbinding service", coloredService, "from app", coloredAppName)
-				}
-			}
+	for _, app := range apps {
+		coloredCommand := table.EntityNameColor(command)
+		coloredAppName := table.EntityNameColor(app.Name)
+		if (!force) {
+			var confirmation string
+			fmt.Printf("Really %s app %s?%s ", table.PromptColor(command), table.PromptColor(app.Name), table.PromptColor(">"))
+			fmt.Scanf("%s", &confirmation)
+			if !strings.EqualFold(confirmation, "y") && !strings.EqualFold(confirmation, "yes") {
+			  continue
+	        }
 		}
+		fmt.Println("Running command", coloredCommand, "on app", coloredAppName)
+		args[1] = app.Name
+		fmt.Println(args)
+		_, err := cliConnection.CliCommand(args...)
+        if err != nil {
+            fmt.Println("PLUGIN ERROR: Error from CliCommand: ", err)
+        }
 	}
-	if len(output) == 0 {
-		fmt.Println(table.WarningColor("No apps found matching"), table.WarningColor(args))
+	if len(apps) == 0 {
+		fmt.Println(table.WarningColor("No apps found matching"), table.WarningColor(pattern))
 	} else {
 		fmt.Println(table.SuccessColor("OK"))
 	}
