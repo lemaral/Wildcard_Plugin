@@ -96,7 +96,7 @@ func (cmd *Wildcard) Run(cliConnection plugin.CliConnection, args []string) {
 
 	switch command {
 		case "wildcard-apps":
-			if len(args) == 0 {
+			if len(args) == 1 {
 				cmd.WildcardCommandApps(cliConnection, args[0])
 			}
 		case "wildcard-delete":
